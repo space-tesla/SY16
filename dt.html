@@ -1,0 +1,94 @@
+Model the following food service industry information as a graph
+model, and answer the following queries using Cypher.
+Consider food service industries like ZOMATO, Swiggy around us.
+Popular restaurants are connected to these industries to increase sell. A
+person order food through this industry and get offers. A person give
+rate(1-5 stars) to company its facility/facilities. and can recommend this
+to his/her friends.
+4. Identify the labels and relationships, along with their properties, and
+draw a high-level Graph model. [3]
+5. Create nodes and relationships, along with their properties, and
+visualize your actual Graph model. [3]
+6. Answer the Queries.
+a. Count no. of customers who place order on “1/1/2023” [3]
+b. List the names of customers whose name starts with S and
+place order using Swiggy [3]
+c. List the names of hotels with high rating (>=4).[4]
+d. List the most recommended hotels in……. area. [4]
+
+
+
+# Step 1: Open MongoDB    using mongosh
+mongosh
+
+# Step 2: Create a database for the food service industry graph
+use food_service_db
+
+# Step 3: Create collections and insert data for customers, restaurants, and orders
+db.customers.insertMany([
+  { _id: 1, name: "John Doe", city: "Mumbai" },
+  { _id: 2, name: "Sara Lee", city: "Delhi" },
+  { _id: 3, name: "Sam Patel", city: "Bangalore" },
+  { _id: 4, name: "Sita Sharma", city: "Chennai" }
+])
+
+db.restaurants.insertMany([
+  { _id: 1, name: "The Royal Dine", rating: 4.5, area: "Mumbai" },
+  { _id: 2, name: "Foodie Delight", rating: 3.8, area: "Delhi" },
+  { _id: 3, name: "Tasty Treats", rating: 4.2, area: "Bangalore" },
+  { _id: 4, name: "Spicy Street", rating: 5, area: "Chennai" }
+])
+
+db.orders.insertMany([
+  { _id: 1, customerId: 1, restaurantId: 1, date: ISODate("2023-01-01T10:00:00Z"), orderType: "Swiggy", rating: 5, recommendation: true },
+  { _id: 2, customerId: 2, restaurantId: 2, date: ISODate("2023-01-02T11:30:00Z"), orderType: "Zomato", rating: 3, recommendation: false },
+  { _id: 3, customerId: 3, restaurantId: 3, date: ISODate("2023-01-01T09:15:00Z"), orderType: "Swiggy", rating: 4, recommendation: true },
+  { _id: 4, customerId: 4, restaurantId: 4, date: ISODate("2023-01-03T12:00:00Z"), orderType: "Zomato", rating: 5, recommendation: true }
+])
+
+# Step 4: Write the queries to fetch the required results
+
+# a. Count number of customers who placed orders on "1/1/2023"
+db.orders.aggregate([
+  { $match: { date: ISODate("2023-01-01T00:00:00Z") } },
+  { $group: { _id: "$customerId" } },
+  { $count: "totalCustomers" }
+])
+
+# b. List the names of customers whose name starts with "S" and placed orders using "Swiggy"
+db.orders.aggregate([
+  { $match: { orderType: "Swiggy" } },
+  { $lookup: {
+    from: "customers",
+    localField: "customerId",
+    foreignField: "_id",
+    as: "customer_info"
+  }},
+  { $unwind: "$customer_info" },
+  { $match: { "customer_info.name": { $regex: "^S" } } },
+  { $project: { "customer_info.name": 1 } }
+])
+
+# c. List the names of hotels with a high rating (>= 4)
+db.restaurants.aggregate([
+  { $match: { rating: { $gte: 4 } } },
+  { $project: { name: 1, rating: 1 } }
+])
+
+# d. List the most recommended hotels in a given area, for example, "Mumbai"
+db.orders.aggregate([
+  { $match: { recommendation: true } },
+  { $lookup: {
+    from: "restaurants",
+    localField: "restaurantId",
+    foreignField: "_id",
+    as: "restaurant_info"
+  }},
+  { $unwind: "$restaurant_info" },
+  { $match: { "restaurant_info.area": "Mumbai" } },
+  { $group: { _id: "$restaurant_info.name", recommendationCount: { $sum: 1 } } },
+  { $sort: { recommendationCount: -1 } }
+])
+
+# Step 5: Exit MongoDB   
+exit
